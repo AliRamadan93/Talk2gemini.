@@ -1,5 +1,6 @@
 import os
 import requests
+import re
 from telegram import Update
 from telegram.ext import ApplicationBuilder, MessageHandler, CommandHandler, filters, ContextTypes
 
@@ -14,8 +15,17 @@ def ask_gemini(prompt):
     try:
         url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}"
 
+        # 🔥 Prompt هندسي يخلي الرد منظم
+        enhanced_prompt = f"""
+أجب بشكل منظم وواضح بدون رموز markdown أو نجوم.
+استخدم عناوين بسيطة ونقاط مرقمة فقط إذا لزم الأمر.
+
+السؤال:
+{prompt}
+"""
+
         payload = {
-            "contents": [{"parts": [{"text": prompt}]}]
+            "contents": [{"parts": [{"text": enhanced_prompt}]}]
         }
 
         response = requests.post(url, json=payload, timeout=30)
@@ -32,17 +42,37 @@ def ask_gemini(prompt):
 
 
 # =========================
-# تقسيم الرسائل الطويلة
+# تنظيف النص
+# =========================
+def clean_text(text):
+    text = re.sub(r"\*+", "", text)
+    text = re.sub(r"\#+", "", text)
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip()
+
+
+# =========================
+# لو الرد طويل → نلخصه
+# =========================
+def smart_trim(text, max_chars=6000):
+    if len(text) <= max_chars:
+        return text
+
+    return text[:max_chars] + "\n\n⚠️ (تم اختصار الرد لعدم الإطالة)"
+
+
+# =========================
+# تقسيم الرسائل
 # =========================
 def split_text(text, limit=3500):
     return [text[i:i+limit] for i in range(0, len(text), limit)]
 
 
 # =========================
-# start command
+# start
 # =========================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("👋 أهلاً بيك! ابعت أي حاجة 🤖")
+    await update.message.reply_text("👋 أهلاً بيك! اسأل أي حاجة 🤖")
 
 
 # =========================
@@ -57,7 +87,11 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply = ask_gemini(user_text)
 
         if not reply:
-            reply = "❌ مفيش رد من البوت"
+            reply = "❌ مفيش رد"
+
+        # تنظيف + تحسين
+        reply = clean_text(reply)
+        reply = smart_trim(reply)
 
         chunks = split_text(reply)
 
@@ -92,7 +126,7 @@ def main():
 
     app.add_error_handler(error_handler)
 
-    print("🚀 Bot is running...")
+    print("🚀 Bot is running (PRO VERSION)...")
     app.run_polling()
 
 
