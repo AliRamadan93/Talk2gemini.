@@ -7,6 +7,19 @@ TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
 
+def clean_text(text):
+    # إزالة النجوم والفراغات الغريبة
+    text = text.replace("*******", "")
+    text = text.replace("****", "")
+    text = text.strip()
+
+    # منع الرد الفاضي
+    if not text:
+        return "⚠️ حصل خطأ، حاول تاني."
+
+    return text
+
+
 def ask_groq(prompt):
     try:
         url = "https://api.groq.com/openai/v1/chat/completions"
@@ -17,23 +30,36 @@ def ask_groq(prompt):
         }
 
         payload = {
-            "model": "llama-3.1-8b-instant",
+            "model": "llama-3.1-70b-versatile",  # 👈 أفضل من 8b
             "messages": [
-                {"role": "user", "content": prompt}
-            ]
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a helpful, polite, and professional assistant. "
+                        "Answer clearly in Arabic when the user speaks Arabic. "
+                        "Do NOT censor normal words. "
+                        "Format your answers cleanly like ChatGPT with short paragraphs."
+                    )
+                },
+                {
+                    "role": "user",
+                    "content": prompt[:2000]
+                }
+            ],
+            "temperature": 0.7,
+            "max_tokens": 800
         }
 
         response = requests.post(url, headers=headers, json=payload, timeout=30)
-
-        print("STATUS:", response.status_code)
-        print("RESPONSE:", response.text)
 
         if response.status_code != 200:
             return f"❌ API Error:\n{response.text}"
 
         data = response.json()
 
-        return data["choices"][0]["message"]["content"]
+        reply = data["choices"][0]["message"]["content"]
+
+        return clean_text(reply)
 
     except Exception as e:
         return f"❌ Error: {str(e)}"
@@ -50,7 +76,13 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     reply = ask_groq(user_text)
 
-    await msg.edit_text(reply)
+    # لو الرد طويل جدًا نقسمه
+    if len(reply) > 4000:
+        for i in range(0, len(reply), 4000):
+            await update.message.reply_text(reply[i:i+4000])
+        await msg.delete()
+    else:
+        await msg.edit_text(reply)
 
 
 def main():
