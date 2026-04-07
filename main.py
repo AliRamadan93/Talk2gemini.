@@ -13,7 +13,7 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 # =========================
 def ask_gemini(prompt):
     try:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}"
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/Gemini 3.1 Flash Lite:generateContent?key={GEMINI_API_KEY}"
 
         # 🔥 Prompt هندسي يخلي الرد منظم
         enhanced_prompt = f"""
